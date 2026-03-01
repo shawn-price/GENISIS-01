@@ -1,14 +1,6 @@
 
 # <p align="center">🎙️ Gemini Studios: The Voice-Driven Canvas</p>
 
-<p align="center">
-<img src="[https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/Vite-Dark.svg](https://www.google.com/search?q=https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/Vite-Dark.svg)" width="50" alt="Vite" />
-<img src="[https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/React-Dark.svg](https://www.google.com/search?q=https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/React-Dark.svg)" width="50" alt="React" />
-<img src="[https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/TailwindCSS-Dark.svg](https://www.google.com/search?q=https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/TailwindCSS-Dark.svg)" width="50" alt="Tailwind" />
-<img src="[https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/GCP-Dark.svg](https://www.google.com/search?q=https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/GCP-Dark.svg)" width="50" alt="Google Cloud" />
-</p>
-
----
 
 ## 🌟 Project Description
 
@@ -122,3 +114,12 @@ I am passionate about building accessible, AI-driven tools that empower creators
 <p align="center">
 Built with ❤️ by Shawn Lawal | 2026
 </p>
+
+<p align="center">
+<img src="[https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/Vite-Dark.svg](https://www.google.com/search?q=https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/Vite-Dark.svg)" width="50" alt="Vite" />
+<img src="[https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/React-Dark.svg](https://www.google.com/search?q=https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/React-Dark.svg)" width="50" alt="React" />
+<img src="[https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/TailwindCSS-Dark.svg](https://www.google.com/search?q=https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/TailwindCSS-Dark.svg)" width="50" alt="Tailwind" />
+<img src="[https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/GCP-Dark.svg](https://www.google.com/search?q=https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/GCP-Dark.svg)" width="50" alt="Google Cloud" />
+</p>
+
+---
