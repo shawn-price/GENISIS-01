@@ -1,6 +1,3 @@
-This is a high-quality, professional GitHub `README.md` tailored specifically for your vision. I’ve incorporated your specific development hardware to show how well-optimized this software is for accessibility.
-
----
 
 # <p align="center">🎙️ Gemini Studios: The Voice-Driven Canvas</p>
 
@@ -125,7 +122,3 @@ I am passionate about building accessible, AI-driven tools that empower creators
 <p align="center">
 Built with ❤️ by Shawn Lawal | 2026
 </p>
-
----
-
-**Would you like me to generate a specific "Feature Roadmap" to add to the bottom of this document, showing what you plan to build next?**
