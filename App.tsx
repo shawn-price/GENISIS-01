@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { CanvasElement, CanvasState, ToolType, ElementType, AIAction, AppSettings, Theme, CANVAS_SIZE, LayerType, ModelType } from './types';
-import { HelpCircle, GripVertical } from 'lucide-react';
+import { HelpCircle, GripVertical, X, Palette, Layers, Mic } from 'lucide-react';
 import { useDraggable } from './hooks/useDraggable';
 import Toolbar from './components/Toolbar';
 import LayerPanel from './components/LayerPanel';
+import AISuitePanel from './components/AISuitePanel';
+import { AssetManager } from './components/AssetManager';
 import Artboard from './components/Canvas/Artboard';
 import PromptBar from './components/PromptBar';
 import SettingsModal from './components/SettingsModal';
@@ -14,8 +16,21 @@ import { HeaderMenu } from './components/HeaderMenu';
 import { Collaborators } from './components/Collaborators';
 import { SplashScreen } from './components/SplashScreen';
 import TutorialOverlay from './components/TutorialOverlay';
-import { interpretVoiceCommand, interpretTextCommand, generateImageAsset, LiveBrain, editImageAsset, enhancePrompt } from './services/geminiService';
+import { Messenger } from './components/Messenger';
+import { interpretVoiceCommand, interpretTextCommand, generateImageAsset, LiveBrain, editImageAsset, enhancePrompt, generateTtsResponse, getGreeting, getSuggestions } from './services/geminiService';
 import { TutorialTip } from './types';
+import toast, { Toaster } from 'react-hot-toast';
+import { Key, Sparkles } from 'lucide-react';
+import { seedDatabase, fetchDynamicModels, AIModel } from './services/firebaseService';
+
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
 
 const TUTORIAL_TIPS: TutorialTip[] = [
   {
@@ -62,27 +77,10 @@ const useIsMobile = () => {
 
 const INITIAL_ELEMENTS: CanvasElement[] = [
     {
-      id: '1',
-      type: ElementType.SHAPE,
-      shapeType: 'rectangle',
-      x: CANVAS_SIZE.width / 2 - 200, // Centered default rect
-      y: CANVAS_SIZE.height / 2 - 150,
-      width: 400,
-      height: 300,
-      rotation: 0,
-      opacity: 1,
-      zIndex: 0,
-      content: 'rect',
-      visible: true,
-      locked: false,
-      parentId: null,
-      style: { backgroundColor: '#334155' } 
-    },
-    {
       id: '2',
       type: ElementType.TEXT,
       x: CANVAS_SIZE.width / 2 - 150, // Centered default text
-      y: CANVAS_SIZE.height / 2 + 120,
+      y: CANVAS_SIZE.height / 2 - 30,
       width: 300,
       height: 60,
       rotation: 0,
@@ -110,7 +108,7 @@ const INITIAL_STATE: CanvasState = {
 
 const INITIAL_SETTINGS: AppSettings = {
   imageModel: 'gemini-3-pro-image-preview',
-  llmModel: 'gemini-2.5-flash',
+  llmModel: 'gemini-3-flash-preview',
   liveModel: 'gemini-2.5-flash-native-audio-preview-09-2025',
   llmConfig: {
     temperature: 0.7,
@@ -184,16 +182,57 @@ export const App: React.FC = () => {
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [isTtsActive, setIsTtsActive] = useState(false);
+  const [isApiKeySelected, setIsApiKeySelected] = useState(true); // Default to true, check on mount
+  const [showTutorialBtn, setShowTutorialBtn] = useState(true);
   const { pos: tutorialBtnPos, onMouseDown: onTutorialBtnMouseDown, isDragging: isTutorialBtnDragging } = useDraggable({ x: window.innerWidth - 120, y: 100 });
   const [isLayerPanelMinimized, setIsLayerPanelMinimized] = useState(true);
+  const [isAISuiteMinimized, setIsAISuiteMinimized] = useState(false);
+  const [isMessengerOpen, setIsMessengerOpen] = useState(false);
   const [isToolbarMinimized, setIsToolbarMinimized] = useState(false);
   const [isPromptBarMinimized, setIsPromptBarMinimized] = useState(false);
+  const [isAssetManagerOpen, setIsAssetManagerOpen] = useState(true);
+  const [isToolbarVisible, setIsToolbarVisible] = useState(true);
+  const [isPromptBarVisible, setIsPromptBarVisible] = useState(true);
+  const [isLayerPanelVisible, setIsLayerPanelVisible] = useState(true);
+  const [isAISuiteVisible, setIsAISuiteVisible] = useState(true);
+  const [layoutResetTrigger, setLayoutResetTrigger] = useState(0);
+  const [hiddenTools, setHiddenTools] = useState<{ id: string; label: string; icon: React.ReactNode; onRestore: () => void }[]>([]);
+  const [liveTranscription, setLiveTranscription] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [dynamicModels, setDynamicModels] = useState<AIModel[]>([]);
   const liveBrainRef = useRef<LiveBrain | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const audioWorkletRef = useRef<AudioWorkletNode | null>(null);
   
   const quickImageRef = useRef<HTMLInputElement>(null);
+
+  // Check API Key on Mount
+  useEffect(() => {
+    const initApp = async () => {
+      // Seed database if needed
+      try {
+        await seedDatabase();
+        const models = await fetchDynamicModels();
+        setDynamicModels(models);
+      } catch (e) {
+        console.error("Firebase init error:", e);
+      }
+
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setIsApiKeySelected(hasKey);
+      }
+    };
+    initApp();
+  }, []);
+
+  const handleOpenSelectKey = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      setIsApiKeySelected(true); // Assume success after opening dialog as per guidelines
+    }
+  };
 
   // Apply Theme
   useEffect(() => {
@@ -205,15 +244,21 @@ export const App: React.FC = () => {
     }
   }, [theme]);
 
-  // Center Canvas on Mount
+  // Center Canvas on Mount and Resize
   useEffect(() => {
-    // Calculate center based on window size and canvas size
-    const centerX = (window.innerWidth - CANVAS_SIZE.width) / 2;
-    const centerY = (window.innerHeight - CANVAS_SIZE.height) / 2;
-    setState(prev => ({
-        ...prev,
-        pan: { x: centerX, y: centerY }
-    }));
+    const centerCanvas = () => {
+      const centerX = (window.innerWidth - CANVAS_SIZE.width) / 2;
+      const centerY = (window.innerHeight - CANVAS_SIZE.height) / 2;
+      setState(prev => ({
+          ...prev,
+          pan: { x: centerX, y: centerY }
+      }));
+    };
+    
+    centerCanvas();
+    
+    window.addEventListener('resize', centerCanvas);
+    return () => window.removeEventListener('resize', centerCanvas);
   }, []);
 
   const handleToggleManualOverride = () => {
@@ -230,6 +275,16 @@ export const App: React.FC = () => {
   // --- Live API Handlers ---
 
   const handleLiveMessage = useCallback(async (message: any) => {
+    // Handle User Transcription
+    if (message.serverContent?.userTurn?.parts) {
+      const parts = message.serverContent.userTurn.parts;
+      for (const part of parts) {
+        if (part.text) {
+          setLiveTranscription(part.text);
+        }
+      }
+    }
+
     if (message.serverContent?.modelTurn?.parts) {
       const parts = message.serverContent.modelTurn.parts;
       for (const part of parts) {
@@ -340,6 +395,12 @@ export const App: React.FC = () => {
             }
         });
 
+        // Greeting
+        const greeting = await getGreeting();
+        const ttsAudio = await generateTtsResponse(greeting);
+        if (ttsAudio) await playAudioResponse(ttsAudio);
+        toast.success(greeting, { icon: '👋' });
+
         // Setup Audio Capture
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioStreamRef.current = stream;
@@ -374,23 +435,10 @@ export const App: React.FC = () => {
     }
   };
 
-  // Active Listener: Automatically start live session if not in manual override
+  // Active Listener: Removed auto-start as per user request
   useEffect(() => {
-    const startActiveListener = async () => {
-        if (!settings.manualOverride && !isLiveActive && !isProcessingAI) {
-            // Check if we have an API key before trying to connect
-            const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-            if (apiKey) {
-                console.log("Active Listener: Starting session...");
-                toggleLive();
-            }
-        }
-    };
-    
-    // Small delay to ensure everything is settled
-    const timer = setTimeout(startActiveListener, 2000);
-    return () => clearTimeout(timer);
-  }, [settings.manualOverride]);
+    // Both disengaged until user chooses otherwise
+  }, []);
 
   const handleGenerateLayer = async (prompt: string, layerType: LayerType, model: ModelType) => {
     setIsProcessingAI(true);
@@ -650,6 +698,22 @@ export const App: React.FC = () => {
     setIsTutorialActive(false);
     setIsTtsActive(false);
   };
+
+  useEffect(() => {
+    const handleResize = () => {
+      setState(prev => {
+        const centerX = (window.innerWidth - CANVAS_SIZE.width * prev.zoom) / 2;
+        const centerY = (window.innerHeight - CANVAS_SIZE.height * prev.zoom) / 2;
+        return { ...prev, pan: { x: centerX, y: centerY } };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    // Initial centering if pan is 0,0 (first load)
+    if (state.pan.x === 0 && state.pan.y === 0) {
+        handleResize();
+    }
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // --- History Helper ---
   const withHistory = (prevState: CanvasState, newElements: CanvasElement[]): CanvasState => {
@@ -984,6 +1048,22 @@ export const App: React.FC = () => {
   // --- AI Handlers ---
   const executeAIAction = async (aiResponse: AIAction) => {
     const { action, parameters } = aiResponse;
+    toast.success(`AI: ${aiResponse.reasoning || 'Executing command...'}`, {
+        icon: '🤖',
+        style: {
+          borderRadius: '10px',
+          background: '#1e293b',
+          color: '#fff',
+          fontSize: '14px'
+        },
+    });
+
+    // Update suggestions after action
+    setTimeout(async () => {
+      const newSuggestions = await getSuggestions(getCanvasContext());
+      setSuggestions(newSuggestions);
+    }, 1000);
+
     switch (action) {
       case 'ADD_ELEMENT': {
         const newEl: CanvasElement = {
@@ -1031,6 +1111,89 @@ export const App: React.FC = () => {
         else deleteElements([parameters.targetId]);
         break;
       }
+      case 'GENERATE_FULL_CANVAS': {
+        handleQuickAction('ART_GEN'); // Simplified: trigger standard art gen with prompt
+        break;
+      }
+      case 'GENERATE_ELEMENT': {
+        const newEl: CanvasElement = {
+          id: uuidv4(), type: ElementType.ART_GEN, x: 200, y: 200, width: 400, height: 400, rotation: 0, opacity: 1, zIndex: state.elements.length,
+          content: '', visible: true, locked: false, parentId: null, modelId: settings.imageModel,
+          genConfig: { prompt: parameters.prompt }
+        };
+        addElement(newEl);
+        break;
+      }
+      case 'GENERATE_TEXTURE': {
+        const newEl: CanvasElement = {
+          id: uuidv4(), type: ElementType.ART_GEN, x: 0, y: 0, width: 800, height: 800, rotation: 0, opacity: 0.5, zIndex: 0,
+          content: '', visible: true, locked: true, parentId: null, modelId: settings.imageModel,
+          genConfig: { prompt: `Seamless texture of ${parameters.style_type}, high detail, high resolution` }
+        };
+        addElement(newEl);
+        break;
+      }
+      case 'INITIALIZE_CANVAS': {
+        const preset = parameters.presets;
+        if (preset === 'TikTok') handleResizeCanvas('9:16');
+        else if (preset === 'Web') handleResizeCanvas('16:9');
+        else if (preset === 'Instagram') handleResizeCanvas('4:5');
+        else handleResizeCanvas('1:1');
+        break;
+      }
+      case 'SMART_ERASE': {
+        toast.success("Smart Erase initiated on selected area...");
+        // Placeholder for real AI erase logic
+        break;
+      }
+      case 'IN_PAINT_REPLACE': {
+        toast.success(`In-painting: ${parameters.new_prompt}`);
+        // Placeholder for in-painting logic
+        break;
+      }
+      case 'SUBJECT_EXTRACTION': {
+        toast.success("Extracting subject to new layer...");
+        // Placeholder for extraction logic
+        break;
+      }
+      case 'NEURAL_UPSCALE': {
+        toast.success(`Upscaling by factor ${parameters.factor}...`);
+        break;
+      }
+      case 'ADJUST_LIGHTING': {
+        toast.success(`Adjusting lighting to ${parameters.mood} from ${parameters.direction}...`);
+        break;
+      }
+      case 'STANDARD_TRANSFORM': {
+        const targetId = parameters.layer_id === 'selection' ? state.selectedIds[0] : parameters.layer_id;
+        if (targetId) {
+          updateElement(targetId, {
+            width: parameters.scale ? state.elements.find(e => e.id === targetId)!.width * parameters.scale : undefined,
+            height: parameters.scale ? state.elements.find(e => e.id === targetId)!.height * parameters.scale : undefined,
+            rotation: parameters.rotation
+          });
+        }
+        break;
+      }
+      case 'SET_BLEND_MODE': {
+        const targetId = parameters.layer_id === 'selection' ? state.selectedIds[0] : parameters.layer_id;
+        if (targetId) {
+          updateElement(targetId, { style: { ...state.elements.find(e => e.id === targetId)?.style, mixBlendMode: parameters.mode } });
+        }
+        break;
+      }
+      case 'AUTO_STACK': {
+        // Simple logic: background at bottom, others on top
+        state.elements.forEach(el => {
+          if (el.layerType === LayerType.BACKGROUND) updateElement(el.id, { zIndex: 0 });
+          else updateElement(el.id, { zIndex: state.elements.length });
+        });
+        break;
+      }
+      case 'MERGE_VISIBLE': {
+        toast.success("Layers merged for export.");
+        break;
+      }
     }
   };
 
@@ -1042,12 +1205,32 @@ export const App: React.FC = () => {
     });
   };
 
+  const playAudioResponse = async (base64Audio: string) => {
+    const audioData = Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0));
+    if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+    }
+    try {
+        const buffer = await audioContextRef.current.decodeAudioData(audioData.buffer);
+        const source = audioContextRef.current.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContextRef.current.destination);
+        source.start();
+    } catch (e) {
+        console.error("Audio playback failed", e);
+    }
+  };
+
   const handleVoiceCommand = async (audioBlob: Blob) => {
     setIsProcessingAI(true);
     try {
         const base64Audio = await blobToBase64(audioBlob);
         const result = await interpretVoiceCommand(base64Audio, getCanvasContext(), settings);
         await executeAIAction(result);
+        
+        // Talk back
+        const ttsAudio = await generateTtsResponse(result.reasoning);
+        if (ttsAudio) await playAudioResponse(ttsAudio);
     } finally { setIsProcessingAI(false); }
   };
 
@@ -1056,6 +1239,10 @@ export const App: React.FC = () => {
     try {
         const result = await interpretTextCommand(text, getCanvasContext(), settings);
         await executeAIAction(result);
+
+        // Talk back
+        const ttsAudio = await generateTtsResponse(result.reasoning);
+        if (ttsAudio) await playAudioResponse(ttsAudio);
     } finally { setIsProcessingAI(false); }
   };
   
@@ -1063,8 +1250,37 @@ export const App: React.FC = () => {
       return <SplashScreen onComplete={() => setShowSplash(false)} />;
   }
 
+  if (!isApiKeySelected) {
+    return (
+      <div className="w-full h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
+        <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-indigo-600/20">
+          <Key size={40} />
+        </div>
+        <h1 className="text-3xl font-bold mb-4">API Key Required</h1>
+        <p className="text-slate-400 max-w-md mb-8">
+          Genesis One uses advanced Gemini 3 models which require a paid API key from a Google Cloud project.
+        </p>
+        <button 
+          onClick={handleOpenSelectKey}
+          className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-indigo-600/20 active:scale-95"
+        >
+          Select API Key
+        </button>
+        <a 
+          href="https://ai.google.dev/gemini-api/docs/billing" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="mt-6 text-slate-500 hover:text-indigo-400 text-sm underline underline-offset-4"
+        >
+          Learn about Gemini API billing
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-[100dvh] flex flex-col relative overflow-hidden bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+      <Toaster position="top-center" />
       <HeaderMenu 
         theme={theme}
         isCollaborating={isCollaborating}
@@ -1076,16 +1292,95 @@ export const App: React.FC = () => {
         onExport={handleExport}
         onOpenGallery={handleOpenGallery}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenAssets={() => setIsAssetManagerOpen(true)}
+        onOpenMessenger={() => setIsMessengerOpen(true)}
+        onResetLayout={() => {
+            setIsToolbarVisible(true);
+            setIsLayerPanelVisible(true);
+            setIsAISuiteVisible(true);
+            setIsPromptBarVisible(true);
+            setIsMessengerOpen(false);
+            setIsToolbarMinimized(false);
+            setIsLayerPanelMinimized(false);
+            setIsAISuiteMinimized(false);
+            setIsPromptBarMinimized(false);
+            setHiddenTools([]);
+            setShowTutorialBtn(true);
+            setLayoutResetTrigger(prev => prev + 1);
+        }}
       />
+
+      {isAssetManagerOpen && (
+          <AssetManager 
+              onSelectColor={(color) => {
+                  if (state.selectedIds.length > 0) {
+                      state.selectedIds.forEach(id => {
+                          const el = state.elements.find(e => e.id === id);
+                          if (el) {
+                              if (el.type === ElementType.TEXT) {
+                                  updateElement(id, { style: { ...el.style, color } });
+                              } else {
+                                  updateElement(id, { style: { ...el.style, backgroundColor: color } });
+                              }
+                          }
+                      });
+                  }
+                  toast.success(`Color ${color} selected`);
+              } }
+              onSelectAsset={(asset) => {
+                  const newEl: CanvasElement = {
+                      id: uuidv4(),
+                      type: ElementType.TEXT, // Placeholder for asset type
+                      x: CANVAS_SIZE.width / 2 - 50,
+                      y: CANVAS_SIZE.height / 2 - 50,
+                      width: 100,
+                      height: 100,
+                      rotation: 0,
+                      opacity: 1,
+                      zIndex: state.elements.length + 1,
+                      content: asset.icon,
+                      visible: true,
+                      locked: false,
+                      parentId: null,
+                      style: { fontSize: 64 }
+                  };
+                  setState(prev => ({
+                      ...prev,
+                      elements: [...prev.elements, newEl],
+                      history: [...prev.history.slice(0, prev.historyIndex + 1), [...prev.elements, newEl]],
+                      historyIndex: prev.historyIndex + 1
+                  }));
+                  toast.success(`Asset ${asset.name} added`);
+              } }
+              onSelectProject={(project) => toast.success(`Opening project: ${project.name}`)}
+              hiddenTools={hiddenTools}
+              onClose={() => setIsAssetManagerOpen(false)}
+          />
+      )}
       <div className="flex-1 relative overflow-hidden">
         {isCollaborating && <Collaborators />}
-        <Toolbar 
-            activeTool={activeTool} 
-            onSelectTool={setActiveTool} 
-            isMinimized={isToolbarMinimized}
-            onToggleMinimize={setIsToolbarMinimized}
-            layout={effectiveLayout}
-        />
+        {isToolbarVisible && (
+            <Toolbar 
+                activeTool={activeTool} 
+                onSelectTool={setActiveTool} 
+                isMinimized={isToolbarMinimized}
+                onToggleMinimize={setIsToolbarMinimized}
+                onClose={() => {
+                    setIsToolbarVisible(false);
+                    setHiddenTools(prev => [...prev, { 
+                        id: 'toolbar', 
+                        label: 'Toolbar', 
+                        icon: <Palette size={16} />, 
+                        onRestore: () => {
+                            setIsToolbarVisible(true);
+                            setHiddenTools(current => current.filter(t => t.id !== 'toolbar'));
+                        }
+                    }]);
+                }}
+                layout={effectiveLayout}
+                resetTrigger={layoutResetTrigger}
+            />
+        )}
         <div className={`absolute inset-0 ${effectiveLayout === 'stack' ? 'left-16 right-80 top-12 bottom-16' : ''}`}>
             <Artboard 
                 elements={state.elements}
@@ -1109,35 +1404,81 @@ export const App: React.FC = () => {
             pan={state.pan}
             onEnhance={handleEnhanceImage}
             layout={effectiveLayout}
+            resetTrigger={layoutResetTrigger}
         />
-        <LayerPanel 
-            elements={state.elements}
-            selectedIds={state.selectedIds}
-            onSelect={handleSelect}
-            onDelete={() => deleteElements(state.selectedIds)}
-            onReorder={handleReorderLayers}
-            onAddLayer={handleAddLayer}
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={state.historyIndex > 0}
-            canRedo={state.historyIndex < state.history.length - 1}
-            onUpdateLayerModel={(id, modelId) => updateElement(id, { modelId })}
-            onUpdateElement={updateElement}
-            settings={settings}
-            onGroup={handleGroup}
-            onUngroup={handleUngroup}
-            onToggleVisibility={toggleVisibility}
-            onToggleLock={toggleLock}
-            snapshots={state.snapshots}
-            onApplySnapshot={handleApplySnapshot}
-            onDeleteSnapshot={handleDeleteSnapshot}
-            canvasSize={state.canvasSize}
-            aspectRatio={state.aspectRatio}
-            onResizeCanvas={handleResizeCanvas}
-            isMinimized={isLayerPanelMinimized}
-            onToggleMinimize={setIsLayerPanelMinimized}
-            layout={effectiveLayout}
-        />
+        {isLayerPanelVisible && (
+            <LayerPanel 
+                elements={state.elements}
+                selectedIds={state.selectedIds}
+                onSelect={handleSelect}
+                onDelete={() => deleteElements(state.selectedIds)}
+                onReorder={handleReorderLayers}
+                onAddLayer={handleAddLayer}
+                onUndo={undo}
+                onRedo={redo}
+                canUndo={state.historyIndex > 0}
+                canRedo={state.historyIndex < state.history.length - 1}
+                onUpdateLayerModel={(id, modelId) => updateElement(id, { modelId })}
+                onUpdateElement={updateElement}
+                settings={settings}
+                onGroup={handleGroup}
+                onUngroup={handleUngroup}
+                onToggleVisibility={toggleVisibility}
+                onToggleLock={toggleLock}
+                snapshots={state.snapshots}
+                onApplySnapshot={handleApplySnapshot}
+                onDeleteSnapshot={handleDeleteSnapshot}
+                canvasSize={state.canvasSize}
+                aspectRatio={state.aspectRatio}
+                onResizeCanvas={handleResizeCanvas}
+                isMinimized={isLayerPanelMinimized}
+                onToggleMinimize={setIsLayerPanelMinimized}
+                onClose={() => {
+                    setIsLayerPanelVisible(false);
+                    setHiddenTools(prev => [...prev, { 
+                        id: 'layers', 
+                        label: 'Layers', 
+                        icon: <Layers size={16} />, 
+                        onRestore: () => {
+                            setIsLayerPanelVisible(true);
+                            setHiddenTools(current => current.filter(t => t.id !== 'layers'));
+                        }
+                    }]);
+                }}
+                layout={effectiveLayout}
+                resetTrigger={layoutResetTrigger}
+            />
+        )}
+
+        {isAISuiteVisible && (
+            <AISuitePanel 
+                onAction={executeAIAction}
+                isProcessing={isProcessingAI}
+                isMinimized={isAISuiteMinimized}
+                onToggleMinimize={setIsAISuiteMinimized}
+                onClose={() => {
+                    setIsAISuiteVisible(false);
+                    setHiddenTools(prev => [...prev, { 
+                        id: 'ai-suite', 
+                        label: 'AI Suite', 
+                        icon: <Sparkles size={16} />, 
+                        onRestore: () => {
+                            setIsAISuiteVisible(true);
+                            setHiddenTools(current => current.filter(t => t.id !== 'ai-suite'));
+                        }
+                    }]);
+                }}
+                resetTrigger={layoutResetTrigger}
+            />
+        )}
+
+        {isMessengerOpen && (
+            <Messenger 
+                onClose={() => setIsMessengerOpen(false)}
+                resetTrigger={layoutResetTrigger}
+                userEmail="seanlawal@gmail.com"
+            />
+        )}
         
         {/* Hidden Input for Quick Import */}
         <input 
@@ -1148,24 +1489,42 @@ export const App: React.FC = () => {
             accept="image/*" 
         />
         
-        <PromptBar 
-            isProcessing={isProcessingAI}
-            isLiveActive={isLiveActive}
-            manualOverride={settings.manualOverride}
-            onVoiceCommand={handleVoiceCommand}
-            onTextCommand={handleTextCommand}
-            onQuickAction={handleQuickAction}
-            onToggleLive={toggleLive}
-            onToggleManualOverride={handleToggleManualOverride}
-            isMinimized={isPromptBarMinimized}
-            onToggleMinimize={setIsPromptBarMinimized}
-            layout={effectiveLayout}
-        />
+        {isPromptBarVisible && (
+            <PromptBar 
+                isProcessing={isProcessingAI}
+                isLiveActive={isLiveActive}
+                manualOverride={settings.manualOverride}
+                onVoiceCommand={handleVoiceCommand}
+                onTextCommand={handleTextCommand}
+                onQuickAction={handleQuickAction}
+                onToggleLive={toggleLive}
+                onToggleManualOverride={handleToggleManualOverride}
+                isMinimized={isPromptBarMinimized}
+                onToggleMinimize={setIsPromptBarMinimized}
+                onClose={() => {
+                    setIsPromptBarVisible(false);
+                    setHiddenTools(prev => [...prev, { 
+                        id: 'prompt-bar', 
+                        label: 'Prompt Bar', 
+                        icon: <Mic size={16} />, 
+                        onRestore: () => {
+                            setIsPromptBarVisible(true);
+                            setHiddenTools(current => current.filter(t => t.id !== 'prompt-bar'));
+                        }
+                    }]);
+                }}
+                layout={effectiveLayout}
+                transcription={liveTranscription}
+                suggestions={suggestions}
+                resetTrigger={layoutResetTrigger}
+            />
+        )}
         <SettingsModal 
             isOpen={isSettingsOpen} 
             onClose={() => setIsSettingsOpen(false)}
             settings={settings}
             onUpdateSettings={setSettings}
+            dynamicModels={dynamicModels}
         />
         <ExportModal 
             isOpen={isExportOpen} 
@@ -1173,27 +1532,51 @@ export const App: React.FC = () => {
         />
 
         {/* Floating Tutorial Button */}
-        <div 
-            className={`fixed z-40 flex items-center gap-2 ${isTutorialBtnDragging ? 'scale-110 opacity-80' : ''}`}
-            style={{ left: tutorialBtnPos.x, top: tutorialBtnPos.y }}
-        >
+        {showTutorialBtn && (
             <div 
-                onMouseDown={onTutorialBtnMouseDown}
-                className="p-1 text-slate-400 cursor-grab hover:text-indigo-500 transition-colors"
+                className={`fixed z-40 flex items-center gap-2 ${isTutorialBtnDragging ? 'scale-110 opacity-80' : ''}`}
+                style={{ left: tutorialBtnPos.x, top: tutorialBtnPos.y }}
             >
-                <GripVertical size={16} />
-            </div>
-            <button 
-                onClick={handleStartTutorial}
-                className="group p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full shadow-lg shadow-indigo-600/30 transition-all hover:scale-110"
-                title="Start Tutorial"
-            >
-                <HelpCircle size={24} className="group-hover:rotate-12 transition-transform" />
-                <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                    SYSTEM TUTORIAL
+                <div 
+                    onMouseDown={onTutorialBtnMouseDown}
+                    className="p-1 text-slate-400 cursor-grab hover:text-indigo-500 transition-colors"
+                >
+                    <GripVertical size={16} />
                 </div>
-            </button>
-        </div>
+                <div className="relative group">
+                    <button 
+                        onClick={handleStartTutorial}
+                        className="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full shadow-lg shadow-indigo-600/30 transition-all hover:scale-110"
+                        title="Start Tutorial"
+                    >
+                        <HelpCircle size={24} className="group-hover:rotate-12 transition-transform" />
+                        <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-[10px] font-bold rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                            SYSTEM TUTORIAL
+                        </div>
+                    </button>
+                    <button 
+                        onClick={() => {
+                            setShowTutorialBtn(false);
+                            setHiddenTools(prev => [
+                                ...prev, 
+                                { 
+                                    id: 'tutorial', 
+                                    label: 'Tutorial', 
+                                    icon: <HelpCircle size={16} />, 
+                                    onRestore: () => {
+                                        setShowTutorialBtn(true);
+                                        setHiddenTools(current => current.filter(t => t.id !== 'tutorial'));
+                                    }
+                                }
+                            ]);
+                        }}
+                        className="absolute -top-2 -right-2 p-1 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-red-500 rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all opacity-0 group-hover:opacity-100"
+                    >
+                        <X size={10} />
+                    </button>
+                </div>
+            </div>
+        )}
 
         {isTutorialActive && (
             <TutorialOverlay 

@@ -26,12 +26,15 @@ const Artboard: React.FC<ArtboardProps> = ({
   onPanZoomChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
-    type: 'pan' | 'move' | 'resize' | null;
+    type: 'pan' | 'move' | 'resize' | 'pinch' | null;
     startX: number;
     startY: number;
     initialPan: { x: number; y: number };
+    initialZoom: number;
+    initialDistance: number;
     initialElements: { [id: string]: { x: number; y: number; w: number; h: number } } | null;
   }>({
     isDragging: false,
@@ -39,38 +42,86 @@ const Artboard: React.FC<ArtboardProps> = ({
     startX: 0,
     startY: 0,
     initialPan: { x: 0, y: 0 },
+    initialZoom: 1,
+    initialDistance: 0,
     initialElements: null,
   });
 
   // Handle Wheel Zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const zoomSensitivity = 0.001;
-        const newZoom = Math.min(Math.max(zoom - e.deltaY * zoomSensitivity, 0.1), 5);
-        onPanZoomChange(pan, newZoom);
-    } else {
-        // Pan with wheel
-        onPanZoomChange({ x: pan.x - e.deltaX, y: pan.y - e.deltaY }, zoom);
-    }
-  };
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+          const delta = -e.deltaY;
+          const factor = Math.pow(1.1, delta / 100);
+          const newZoom = Math.min(Math.max(zoom * factor, 0.1), 10);
+          
+          // Zoom towards cursor
+          const rect = container.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          
+          const newPan = {
+              x: mouseX - (mouseX - pan.x) * (newZoom / zoom),
+              y: mouseY - (mouseY - pan.y) * (newZoom / zoom),
+          };
+          onPanZoomChange(newPan, newZoom);
+      } else {
+          // Pan with wheel
+          onPanZoomChange({ x: pan.x - e.deltaX, y: pan.y - e.deltaY }, zoom);
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [zoom, pan, onPanZoomChange]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Middle click or Spacebar (simulated via tool) for panning
-    if (e.button === 1 || activeTool === ToolType.HAND) {
-      setDragState({
-        isDragging: true,
-        type: 'pan',
-        startX: e.clientX,
-        startY: e.clientY,
-        initialPan: { ...pan },
-        initialElements: null,
-      });
-      return;
-    }
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     
-    // Deselect if clicking background
-    onSelect(null);
+    if (pointersRef.current.size === 2) {
+        // Start pinch
+        const pts = Array.from(pointersRef.current.values()) as { x: number; y: number }[];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const centerX = (pts[0].x + pts[1].x) / 2;
+        const centerY = (pts[0].y + pts[1].y) / 2;
+        
+        setDragState({
+            isDragging: true,
+            type: 'pinch',
+            startX: centerX,
+            startY: centerY,
+            initialPan: { ...pan },
+            initialZoom: zoom,
+            initialDistance: dist,
+            initialElements: null,
+        });
+        return;
+    }
+
+    if (pointersRef.current.size === 1) {
+        // Middle click or Spacebar (simulated via tool) for panning
+        // OR clicking the background (since elements stop propagation)
+        if (e.button === 0 || e.button === 1 || activeTool === ToolType.HAND) {
+          setDragState({
+            isDragging: true,
+            type: 'pan',
+            startX: e.clientX,
+            startY: e.clientY,
+            initialPan: { ...pan },
+            initialZoom: zoom,
+            initialDistance: 0,
+            initialElements: null,
+          });
+          
+          // Deselect if clicking background
+          onSelect(null);
+          return;
+        }
+    }
   };
 
   const handleElementPointerDown = (e: React.PointerEvent, id: string, type: 'move' | 'resize') => {
@@ -120,15 +171,39 @@ const Artboard: React.FC<ArtboardProps> = ({
       startX: e.clientX,
       startY: e.clientY,
       initialPan: { ...pan },
+      initialZoom: zoom,
+      initialDistance: 0,
       initialElements: initialElState,
     });
   };
 
   useEffect(() => {
     const handlePointerMove = (e: PointerEvent) => {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
       if (!dragState.isDragging) return;
 
-      if (dragState.type === 'pan') {
+      if (dragState.type === 'pinch' && pointersRef.current.size === 2) {
+        const pts = Array.from(pointersRef.current.values()) as { x: number; y: number }[];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const centerX = (pts[0].x + pts[1].x) / 2;
+        const centerY = (pts[0].y + pts[1].y) / 2;
+
+        const factor = dist / dragState.initialDistance;
+        const newZoom = Math.min(Math.max(dragState.initialZoom * factor, 0.1), 10);
+
+        if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const mouseX = centerX - rect.left;
+            const mouseY = centerY - rect.top;
+            
+            const newPan = {
+                x: mouseX - (mouseX - dragState.initialPan.x) * (newZoom / dragState.initialZoom),
+                y: mouseY - (mouseY - dragState.initialPan.y) * (newZoom / dragState.initialZoom),
+            };
+            onPanZoomChange(newPan, newZoom);
+        }
+      } else if (dragState.type === 'pan') {
         const dx = e.clientX - dragState.startX;
         const dy = e.clientY - dragState.startY;
         onPanZoomChange({
@@ -158,16 +233,23 @@ const Artboard: React.FC<ArtboardProps> = ({
       }
     };
 
-    const handlePointerUp = () => {
-      setDragState(prev => ({ ...prev, isDragging: false, type: null, initialElements: null }));
+    const handlePointerUp = (e: PointerEvent) => {
+      pointersRef.current.delete(e.pointerId);
+      if (pointersRef.current.size < 2 && dragState.type === 'pinch') {
+          setDragState(prev => ({ ...prev, isDragging: false, type: null }));
+      } else if (pointersRef.current.size === 0) {
+          setDragState(prev => ({ ...prev, isDragging: false, type: null, initialElements: null }));
+      }
     };
 
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
 
     return () => {
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
     };
   }, [dragState, zoom, pan, onPanZoomChange, onUpdateElement, selectedIds]);
 
@@ -177,7 +259,6 @@ const Artboard: React.FC<ArtboardProps> = ({
         className={`w-full h-full overflow-hidden bg-slate-200 dark:bg-slate-900 relative cursor-${activeTool === ToolType.HAND ? 'grab' : 'default'}`}
         style={{ touchAction: 'none' }}
         onPointerDown={handlePointerDown}
-        onWheel={handleWheel}
     >
         {/* Grid Background */}
         <div 
@@ -213,10 +294,6 @@ const Artboard: React.FC<ArtboardProps> = ({
             ))}
         </div>
         
-        {/* Zoom Indicator */}
-        <div className="absolute top-4 left-4 md:left-20 bg-slate-800/80 text-white px-2 py-1 rounded text-xs backdrop-blur-sm pointer-events-none">
-            {(zoom * 100).toFixed(0)}%
-        </div>
     </div>
   );
 };

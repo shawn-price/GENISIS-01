@@ -38,6 +38,15 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
 
         {/* Branding Content */}
         <div className="relative z-10 flex flex-col items-center">
+            {/* User Requested Overlay Image */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] -z-10 opacity-50 pointer-events-none mix-blend-screen">
+                <img 
+                    src="https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1000&auto=format&fit=crop" 
+                    alt="Splash Overlay" 
+                    className="w-full h-full object-contain"
+                />
+            </div>
+
             <div className="relative mb-8">
                  <div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-30 animate-pulse rounded-full" />
                  <div className="relative bg-gradient-to-br from-indigo-600 to-violet-700 w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl animate-bounce-slow border border-white/10">

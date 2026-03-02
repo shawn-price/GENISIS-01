@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Mic, Send, Sparkles, StopCircle, Loader2, Minimize2, Cpu, Image as ImageIcon, Type, Square, Waves, ShieldAlert, ShieldCheck, GripVertical } from 'lucide-react';
+import { Mic, Send, Sparkles, StopCircle, Loader2, Minimize2, Cpu, Image as ImageIcon, Type, Square, Waves, ShieldAlert, ShieldCheck, GripVertical, X } from 'lucide-react';
 import { useDraggable } from '../hooks/useDraggable';
 
 interface PromptBarProps {
@@ -13,17 +13,29 @@ interface PromptBarProps {
   onToggleManualOverride: () => void;
   isMinimized?: boolean;
   onToggleMinimize?: (minimized: boolean) => void;
+  onClose?: () => void;
   layout?: 'floating' | 'stack';
+  transcription?: string;
+  suggestions?: string[];
+  resetTrigger?: number;
 }
 
 const PromptBar: React.FC<PromptBarProps> = ({ 
     isProcessing, isLiveActive, manualOverride, onVoiceCommand, onTextCommand, onQuickAction, onToggleLive, onToggleManualOverride,
-    isMinimized: controlledMinimized, onToggleMinimize, layout = 'floating'
+    isMinimized: controlledMinimized, onToggleMinimize, onClose, layout = 'floating', transcription = '', suggestions = [], resetTrigger
 }) => {
   const [inputText, setInputText] = useState('');
+
+  // Update input text when transcription arrives
+  React.useEffect(() => {
+    if (transcription) {
+      setInputText(transcription);
+    }
+  }, [transcription]);
+
   const [isRecording, setIsRecording] = useState(false);
   const [internalMinimized, setInternalMinimized] = useState(false);
-  const { pos, onMouseDown, isDragging } = useDraggable({ x: window.innerWidth / 2 - 336, y: window.innerHeight - 120 });
+  const { pos, onMouseDown, isDragging } = useDraggable({ x: window.innerWidth / 2 - 336, y: window.innerHeight - 120 }, resetTrigger);
   
   const isMinimized = controlledMinimized !== undefined ? controlledMinimized : internalMinimized;
   const setIsMinimized = onToggleMinimize || setInternalMinimized;
@@ -206,35 +218,38 @@ const PromptBar: React.FC<PromptBarProps> = ({
               ? 'absolute bottom-0 left-16 right-80 h-16 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center px-4 z-20 transition-all duration-300'
               : `absolute w-full max-w-2xl px-4 z-30 animate-in slide-in-from-bottom-4 duration-300 pb-safe ${isDragging ? 'cursor-grabbing opacity-80 scale-105' : 'cursor-default'}`
             }
+            ${window.innerWidth < 768 ? 'bottom-0 left-0 right-0 max-w-none px-0' : ''}
         `}
-        style={isStack ? {} : { left: pos.x, top: pos.y }}
+        style={isStack ? {} : { 
+            left: window.innerWidth < 768 ? 0 : pos.x, 
+            top: window.innerWidth < 768 ? 'auto' : pos.y,
+            bottom: window.innerWidth < 768 ? 0 : 'auto'
+        }}
     >
-      <div className={`relative group/prompt ${isStack ? 'w-full max-w-3xl mx-auto' : ''}`}>
-        {!isStack && (
-            <div 
-                onMouseDown={onMouseDown}
-                className="h-4 flex items-center justify-center cursor-grab hover:bg-slate-100/50 dark:hover:bg-slate-700/50 transition-colors rounded-t-2xl"
-            >
-                <GripVertical size={16} className="text-slate-300 dark:text-slate-600 rotate-90" />
-            </div>
+      <div className={`relative group/prompt ${isStack ? 'w-full max-w-3xl mx-auto' : ''} ${window.innerWidth < 768 ? 'rounded-none border-x-0 border-b-0' : ''}`}>
+        {/* Suggestions */}
+        {!isMinimized && suggestions.length > 0 && (
+          <div className={`absolute bottom-full left-0 right-0 mb-3 flex flex-wrap gap-2 animate-in slide-in-from-bottom-2 duration-300 ${window.innerWidth < 768 ? 'px-4' : ''}`}>
+            {suggestions.map((suggestion, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setInputText(suggestion);
+                  onTextCommand(suggestion);
+                }}
+                className="px-3 py-1.5 bg-white/10 dark:bg-slate-800/80 backdrop-blur-md border border-white/10 dark:border-slate-700 rounded-full text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
         )}
         <div className={`
             relative flex items-center gap-2 p-2 border transition-all duration-300
-            ${isStack ? 'rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50' : 'rounded-b-2xl border-slate-200 dark:border-slate-600/50 bg-white/90 dark:bg-slate-800/90 shadow-2xl backdrop-blur-xl'}
+            ${isStack ? 'rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50' : 'rounded-2xl border-slate-200 dark:border-slate-600/50 bg-white/90 dark:bg-slate-800/90 shadow-2xl backdrop-blur-xl'}
             ${isRecording ? 'bg-indigo-600/10 border-indigo-500/50 shadow-[0_0_30px_rgba(79,70,229,0.3)] ring-2 ring-indigo-500/20' : ''}
+            ${window.innerWidth < 768 ? 'rounded-none border-x-0 border-b-0' : ''}
         `}>
-            <button
-            onClick={onToggleLive}
-            disabled={isProcessing || manualOverride}
-            className={`
-                flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-xl transition-all shrink-0
-                ${isLiveActive ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 ring-4 ring-emerald-500/20' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}
-                ${isProcessing || manualOverride ? 'opacity-50 cursor-not-allowed' : ''}
-            `}
-            title={isLiveActive ? "Active Listener Mode" : "Activate Active Listener"}
-            >
-              <Cpu size={24} className={isLiveActive ? 'animate-pulse' : ''} />
-            </button>
             <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isProcessing || isLiveActive || manualOverride}
@@ -267,6 +282,18 @@ const PromptBar: React.FC<PromptBarProps> = ({
                 <Send size={20} />
             </button>
             )}
+            <button
+            onClick={onToggleLive}
+            disabled={isProcessing || manualOverride}
+            className={`
+                flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-xl transition-all shrink-0
+                ${isLiveActive ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 ring-4 ring-emerald-500/20' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}
+                ${isProcessing || manualOverride ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
+            title={isLiveActive ? "Active Listener Mode" : "Activate Active Listener"}
+            >
+              <Cpu size={24} className={isLiveActive ? 'animate-pulse' : ''} />
+            </button>
             <button 
                 onClick={onToggleManualOverride}
                 className={`p-2 rounded-lg transition-colors ${manualOverride ? 'text-amber-500' : 'text-slate-400 hover:text-amber-500'}`}
@@ -276,9 +303,16 @@ const PromptBar: React.FC<PromptBarProps> = ({
             </button>
         </div>
         {!isStack && (
-            <button onClick={() => setIsMinimized(true)} className="absolute -top-3 -right-3 p-1.5 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 hover:text-slate-800 dark:hover:text-white shadow-md border border-slate-300 dark:border-slate-600 opacity-100 md:opacity-0 group-hover/prompt:opacity-100 transition-all duration-200">
-                <Minimize2 size={12} />
-            </button>
+            <div className="absolute -top-3 -right-3 flex gap-1">
+                <button onClick={() => setIsMinimized(true)} className="p-1.5 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 hover:text-slate-800 dark:hover:text-white shadow-md border border-slate-300 dark:border-slate-600 transition-all duration-200">
+                    <Minimize2 size={12} />
+                </button>
+                {onClose && (
+                    <button onClick={onClose} className="p-1.5 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-red-500 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 shadow-md border border-slate-300 dark:border-slate-600 transition-all duration-200">
+                        <X size={12} />
+                    </button>
+                )}
+            </div>
         )}
       </div>
     </div>

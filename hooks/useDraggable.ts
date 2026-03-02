@@ -5,7 +5,7 @@ interface Position {
   y: number;
 }
 
-export const useDraggable = (initialPos: Position) => {
+export const useDraggable = (initialPos: Position, resetTrigger?: number) => {
   const [pos, setPos] = useState<Position>({
     x: Math.max(0, Math.min(window.innerWidth - 60, initialPos.x)),
     y: Math.max(0, Math.min(window.innerHeight - 60, initialPos.y))
@@ -13,6 +13,15 @@ export const useDraggable = (initialPos: Position) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartPos = useRef<Position>({ x: 0, y: 0 });
   const startPos = useRef<Position>(initialPos);
+
+  useEffect(() => {
+    if (resetTrigger !== undefined) {
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - 60, initialPos.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 60, initialPos.y))
+      });
+    }
+  }, [resetTrigger, initialPos.x, initialPos.y]);
 
   const onMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     // Only drag if it's the primary mouse button or a touch

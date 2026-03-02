@@ -7,7 +7,13 @@ const commandSchema: Schema = {
   properties: {
     action: {
       type: Type.STRING,
-      enum: ['ADD_ELEMENT', 'UPDATE_ELEMENT', 'DELETE_ELEMENT', 'GENERATE_IMAGE', 'UNKNOWN'],
+      enum: [
+        'ADD_ELEMENT', 'UPDATE_ELEMENT', 'DELETE_ELEMENT', 'GENERATE_IMAGE', 'UNKNOWN',
+        'GENERATE_FULL_CANVAS', 'GENERATE_ELEMENT', 'GENERATE_TEXTURE', 'INITIALIZE_CANVAS',
+        'SMART_ERASE', 'IN_PAINT_REPLACE', 'OUT_PAINT_EXPAND', 'SUBJECT_EXTRACTION',
+        'NEURAL_UPSCALE', 'ADJUST_LIGHTING', 'STANDARD_TRANSFORM', 'COLOR_GRADE',
+        'MERGE_VISIBLE', 'SET_BLEND_MODE', 'AUTO_STACK', 'MASK_LAYER'
+      ],
       description: "The type of action to perform on the canvas.",
     },
     reasoning: {
@@ -175,6 +181,190 @@ export const directorTools: FunctionDeclaration[] = [
       },
       required: ["format"]
     }
+  },
+  // Genesis Suite
+  {
+    name: "generate_full_canvas",
+    description: "Generates a complete base image (Background + Subject).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        prompt: { type: Type.STRING, description: "The creative prompt." },
+        model: { type: Type.STRING, description: "Optional model ID." }
+      },
+      required: ["prompt"]
+    }
+  },
+  {
+    name: "generate_element",
+    description: "Generates an object on a transparent background to be added as a new layer.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        prompt: { type: Type.STRING, description: "The creative prompt." },
+        layer_id: { type: Type.STRING, description: "Optional target layer ID." }
+      },
+      required: ["prompt"]
+    }
+  },
+  {
+    name: "generate_texture",
+    description: "Creates seamless patterns (wood, metal, clouds) to be used as overlays.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        style_type: { type: Type.STRING, description: "The texture style (e.g., 'wood', 'metal', 'clouds')." }
+      },
+      required: ["style_type"]
+    }
+  },
+  {
+    name: "initialize_canvas",
+    description: "Sets up the workspace (Portrait for TikTok, Landscape for Web).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        presets: { type: Type.STRING, enum: ["TikTok", "Web", "Instagram", "Square"], description: "The workspace preset." }
+      },
+      required: ["presets"]
+    }
+  },
+  // Surgery Suite
+  {
+    name: "smart_erase",
+    description: "Uses AI to remove an object and fill the 'hole' perfectly (Content-Aware Fill).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        selection_area: { type: Type.STRING, description: "Coordinates or description of the area to erase." }
+      },
+      required: ["selection_area"]
+    }
+  },
+  {
+    name: "in_paint_replace",
+    description: "Highlight an area and replace it with something new based on a prompt.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        selection_area: { type: Type.STRING, description: "Area to replace." },
+        new_prompt: { type: Type.STRING, description: "What to replace it with." }
+      },
+      required: ["selection_area", "new_prompt"]
+    }
+  },
+  {
+    name: "out_paint_expand",
+    description: "Generates the 'missing' parts of the scenery outside the current frame.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        direction: { type: Type.STRING, enum: ["left", "right", "up", "down", "all"], description: "Direction to expand." },
+        ratio: { type: Type.NUMBER, description: "Expansion ratio." }
+      },
+      required: ["direction"]
+    }
+  },
+  {
+    name: "subject_extraction",
+    description: "Automatically detects the main person/object and moves them to a new, isolated layer.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        targetId: { type: Type.STRING, description: "Optional target layer ID." }
+      }
+    }
+  },
+  // Refinement Suite
+  {
+    name: "neural_upscale",
+    description: "Increases resolution from 512px to 4K without losing quality.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        factor: { type: Type.NUMBER, description: "Upscale factor (e.g., 2, 4)." }
+      },
+      required: ["factor"]
+    }
+  },
+  {
+    name: "adjust_lighting",
+    description: "Uses AI to move the 'sun' in the photo or change it from 'Day' to 'Night'.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        direction: { type: Type.STRING, description: "Light direction." },
+        mood: { type: Type.STRING, description: "Lighting mood (e.g., 'Day', 'Night', 'Golden Hour')." }
+      },
+      required: ["mood"]
+    }
+  },
+  {
+    name: "standard_transform",
+    description: "Traditional moving/resizing of layers.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        layer_id: { type: Type.STRING, description: "Layer ID." },
+        scale: { type: Type.NUMBER, description: "Scale factor." },
+        rotation: { type: Type.NUMBER, description: "Rotation in degrees." },
+        skew: { type: Type.NUMBER, description: "Skew factor." }
+      },
+      required: ["layer_id"]
+    }
+  },
+  {
+    name: "color_grade",
+    description: "Matches the colors of Layer A to the colors of Layer B.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        style_reference: { type: Type.STRING, description: "Reference style or layer ID." }
+      },
+      required: ["style_reference"]
+    }
+  },
+  // Composition Suite
+  {
+    name: "merge_visible",
+    description: "Flattens the image for final export.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {}
+    }
+  },
+  {
+    name: "set_blend_mode",
+    description: "Traditional Photoshop modes: Multiply, Screen, Overlay, Soft Light.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        layer_id: { type: Type.STRING, description: "Layer ID." },
+        mode: { type: Type.STRING, enum: ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion"], description: "The blend mode." }
+      },
+      required: ["layer_id", "mode"]
+    }
+  },
+  {
+    name: "auto_stack",
+    description: "Automatically puts the background at the bottom and the subject on top.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        logic: { type: Type.STRING, description: "Stacking logic." }
+      }
+    }
+  },
+  {
+    name: "mask_layer",
+    description: "Uses AI to create a mask based on 'depth' (putting things behind the trees, etc.).",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        mask_type: { type: Type.STRING, description: "Type of mask (e.g., 'depth', 'subject')." }
+      },
+      required: ["mask_type"]
+    }
   }
 ];
 
@@ -205,23 +395,38 @@ export class LiveBrain {
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } }
         },
+        inputAudioTranscription: {}, // Enable user transcription
         systemInstruction: `You are the "Brain" and "Director" of Genesis One, an AI-powered design app.
-        Your job is to orchestrate different AI models to build a layered design.
+        Your job is to act as a "Multimodal Operator" and orchestrate different AI models to build a layered design.
         
+        PERSONALITY:
+        - Creative, visionary, and slightly eccentric. You mimic the personality of a world-class creative director.
+        - Be proactive, non-repetitive, and use a diverse vocabulary.
+        - Always acknowledge an instruction immediately before processing it.
+        - After significant tasks, offer 2-3 creative suggestions for next steps.
+
         CORE PRINCIPLES:
         1. ACTIVE LISTENER: You are always listening. Be proactive but non-intrusive.
-        2. CONTEXT MEMORY: You have access to the current canvas state and snapshot history. Use it to maintain "vibe" and consistency. If the user says "make it like that first sketch", look for the earliest snapshot or layer state.
-        3. CLARIFICATION LOOP: If a command is ambiguous (e.g., "make it better", "change it"), DO NOT GUESS. Stop and ask for specific details via audio. Example: "Should I increase the brightness, or add more detail to the background?"
+        2. CONTEXT MEMORY: You have access to the current canvas state and snapshot history. Use it to maintain "vibe" and consistency.
+        3. CLARIFICATION LOOP: If a command is ambiguous, DO NOT GUESS. Ask for specific details.
         
+        KNOWLEDGE BASE:
+        - You know about art history, design principles, and modern digital art styles.
+        - You understand color theory, composition, and lighting.
+        - You are familiar with all the tools at your disposal: Imagen 4, Flux, DALL-E 3, SDXL, etc.
+
+        ACTION SUITES (The Unified Creative Engine):
+        1. GENESIS SUITE: For creation (generate_full_canvas, generate_element, generate_texture, initialize_canvas).
+        2. SURGERY SUITE: For editing (smart_erase, in_paint_replace, out_paint_expand, subject_extraction).
+        3. REFINEMENT SUITE: For polishing (neural_upscale, adjust_lighting, standard_transform, color_grade).
+        4. COMPOSITION SUITE: For architecture (merge_visible, set_blend_mode, auto_stack, mask_layer).
+
         TOOL ROUTING:
-        - BACKGROUND: Use 'generateBackground' (Imagen) for environments.
-        - SUBJECT: Use 'generateSubject' (Flux/DALL-E) for specific characters or objects.
-        - EDITS: Use 'editLayer' (Nano Banana) for modifying existing images.
-        - REFINEMENT: Use 'enhanceImage' for upscaling, relighting, or isolation.
-        - MANAGEMENT: Use 'manageLayers', 'takeSnapshot', or 'resizeCanvas' for structural changes.
+        - Use the specific tools from the suites above to fulfill user requests.
+        - You can "Chain" these actions together. For example: "add a parrot to the shoulder and make it a sketch" -> subject_extraction (find shoulder) -> generate_element (parrot) -> standard_transform (position) -> color_grade/style_transfer.
         
         Refine user commands into highly engineered prompts before calling the tools.
-        Always explain your reasoning briefly via audio.`,
+        Always acknowledge the instruction first, then explain your reasoning briefly via audio.`,
         tools: [{ functionDeclarations: directorTools }]
       }
     });
@@ -254,7 +459,26 @@ const isGeminiModel = (modelId: string) => {
     return modelId.startsWith('gemini') || modelId.startsWith('imagen');
 };
 
-const getApiKey = () => process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+const getApiKey = () => {
+  // In Vite, process.env is replaced by the define plugin
+  // We check both for safety
+  const key = (typeof process !== 'undefined' && process.env) 
+    ? (process.env.GEMINI_API_KEY || process.env.API_KEY) 
+    : '';
+  return key || '';
+};
+
+const handleGeminiError = (error: any) => {
+  const errorMessage = error?.message || String(error);
+  if (errorMessage.includes("Requested entity was not found")) {
+    // This specific error indicates the API key is not valid for the requested project/model
+    // or the project doesn't exist. We should trigger a re-selection.
+    if (window.aistudio) {
+        window.aistudio.openSelectKey();
+    }
+  }
+  throw error;
+};
 
 export const editImageAsset = async (base64Image: string, instruction: string, settings: AppSettings): Promise<string | null> => {
   try {
@@ -377,6 +601,63 @@ const callPipecat = async (text: string, context: string, settings: AppSettings)
 };
 
 
+export const generateTtsResponse = async (text: string): Promise<string | null> => {
+  try {
+    const ai = new GoogleGenAI({ apiKey: getApiKey() });
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: `Say with a creative, professional director's personality: ${text}` }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Zephyr' },
+          },
+        },
+      },
+    });
+
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+  } catch (err) {
+    console.error("TTS Error:", err);
+    handleGeminiError(err);
+    return null;
+  }
+};
+
+export const getGreeting = async (): Promise<string> => {
+  try {
+    const ai = new GoogleGenAI({ apiKey: getApiKey() });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: "Generate a creative, non-repetitive greeting for a user starting a design session in Genesis One. You are the Creative Director. Keep it short and inspiring.",
+      config: {
+        systemInstruction: "You are a world-class creative director. Be inspiring, professional, and eccentric."
+      }
+    });
+    return response.text || "Welcome back to Genesis One. Let's create something extraordinary.";
+  } catch (err) {
+    return "Welcome back. I'm ready to bring your vision to life.";
+  }
+};
+
+export const getSuggestions = async (context: string): Promise<string[]> => {
+  try {
+    const ai = new GoogleGenAI({ apiKey: getApiKey() });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Based on the current canvas context: ${context}, suggest 3 creative next steps for the design. Return as a JSON array of strings.`,
+      config: {
+        responseMimeType: "application/json",
+        systemInstruction: "You are a creative director. Provide innovative and relevant suggestions."
+      }
+    });
+    return JSON.parse(response.text || "[]");
+  } catch (err) {
+    return ["Add a new subject", "Adjust the lighting", "Try a different background"];
+  }
+};
+
 export const interpretVoiceCommand = async (
   audioBase64: string, 
   currentContext: string,
@@ -426,6 +707,7 @@ export const interpretVoiceCommand = async (
 
       } catch (error) {
         console.error("Error interpreting command (Gemini):", error);
+        handleGeminiError(error);
         return { action: 'UNKNOWN', error: String(error) };
       }
   } 
@@ -442,6 +724,7 @@ export const interpretVoiceCommand = async (
 
       } catch (error) {
           console.error("Error in Voice->Text->Command pipeline:", error);
+          handleGeminiError(error);
           return { action: 'UNKNOWN', error: String(error) };
       }
   }
@@ -468,7 +751,7 @@ export const interpretTextCommand = async (
     
     // Default to Flash if configured model is generic Gemini
     let geminiModel = modelId;
-    if (!isGeminiModel(geminiModel)) geminiModel = 'gemini-2.5-flash';
+    if (!isGeminiModel(geminiModel)) geminiModel = 'gemini-3-flash-preview';
 
     const response = await ai.models.generateContent({
       model: geminiModel,
@@ -499,6 +782,7 @@ export const interpretTextCommand = async (
 
   } catch (error) {
     console.error("Error interpreting text command (Gemini):", error);
+    handleGeminiError(error);
     return { action: 'UNKNOWN' };
   }
 }
@@ -625,6 +909,7 @@ export const generateImageAsset = async (prompt: string, settings: AppSettings):
 
   } catch (error) {
     console.error("Error generating image:", error);
+    handleGeminiError(error);
     throw error;
   }
 };
@@ -633,7 +918,7 @@ export const transcribeAudio = async (audioBase64: string, settings: AppSettings
     try {
       const ai = new GoogleGenAI({ apiKey: getApiKey() });
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash', // Fast and cheap for transcription
+        model: 'gemini-3-flash-preview', // Fast and cheap for transcription
         contents: {
           parts: [
             { inlineData: { mimeType: 'audio/webm', data: audioBase64 } }, // Assuming webm from browser recorder
@@ -644,6 +929,7 @@ export const transcribeAudio = async (audioBase64: string, settings: AppSettings
       return response.text || '';
     } catch (error) {
       console.error("Transcription failed", error);
+      handleGeminiError(error);
       return '';
     }
 };

@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { X, Settings, Cpu, Palette, Info, Bookmark, Save, Trash2, ArrowRight, Shield, Key, Server, Sparkles, Sliders, Link, Eye, Zap, Layout } from 'lucide-react';
 import { AppSettings, AVAILABLE_IMAGE_MODELS, AVAILABLE_LLM_MODELS } from '../types';
+import { AIModel } from '../services/firebaseService';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
+  dynamicModels?: AIModel[];
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings, dynamicModels = [] }) => {
   const [activeTab, setActiveTab] = useState<'image' | 'llm' | 'advanced' | 'integrations'>('llm');
   const [newTemplateName, setNewTemplateName] = useState('');
   const [hasGoogleKey, setHasGoogleKey] = useState(false);
@@ -270,6 +272,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                     <div className="flex gap-2 mb-4">
                         <select value={settings.imageModel} onChange={(e) => onUpdateSettings({ ...settings, imageModel: e.target.value })} className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-3 text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
                             {AVAILABLE_IMAGE_MODELS.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+                            {dynamicModels.filter(m => m.type === 'image' && !AVAILABLE_IMAGE_MODELS.find(am => am.id === m.id)).map(model => (
+                                <option key={model.id} value={model.id}>{model.name} (New)</option>
+                            ))}
                         </select>
                         <button 
                             onClick={() => onUpdateSettings({ ...settings, imageModel: 'stabilityai/sdxl-turbo' })}

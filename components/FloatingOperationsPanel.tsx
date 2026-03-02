@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Scaling, Droplet, AlignCenter, Palette, Mic, Loader2, Sparkles, Image as ImageIcon, Maximize, Sun, Scissors, Wand2, GripHorizontal } from 'lucide-react';
+import { Trash2, Scaling, Droplet, AlignCenter, Palette, Mic, Loader2, Sparkles, Image as ImageIcon, Maximize, Sun, Scissors, Wand2, GripHorizontal, Minimize2 } from 'lucide-react';
 import { CanvasElement, CANVAS_SIZE, ElementType } from '../types';
 import { useDraggable } from '../hooks/useDraggable';
 
@@ -12,7 +12,9 @@ interface FloatingOperationsPanelProps {
   zoom: number;
   pan: { x: number; y: number };
   onEnhance: (targetId: string, type: string, instruction: string) => void;
+  onClose?: () => void;
   layout?: 'floating' | 'stack';
+  resetTrigger?: number;
 }
 
 const FloatingOperationsPanel: React.FC<FloatingOperationsPanelProps> = ({
@@ -24,9 +26,12 @@ const FloatingOperationsPanel: React.FC<FloatingOperationsPanelProps> = ({
   zoom,
   pan,
   onEnhance,
-  layout = 'floating'
+  onClose,
+  layout = 'floating',
+  resetTrigger
 }) => {
   const [activeControl, setActiveControl] = useState<'scale' | 'opacity' | 'color' | 'refine' | null>(null);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   
   // Calculate initial position
@@ -50,7 +55,25 @@ const FloatingOperationsPanel: React.FC<FloatingOperationsPanelProps> = ({
     return { x: screenX, y: screenY };
   };
 
-  const { pos, setPos, onMouseDown, isDragging } = useDraggable(getInitialPos());
+  const { pos, setPos, onMouseDown, isDragging } = useDraggable(getInitialPos(), resetTrigger);
+
+  const isStack = layout === 'stack';
+
+  if (isMinimized && !isStack) {
+    return (
+      <button 
+        onClick={() => setIsMinimized(false)} 
+        onMouseDown={onMouseDown}
+        className={`
+            absolute p-3 rounded-full bg-white/90 dark:bg-slate-800/90 text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-700 shadow-xl backdrop-blur-md z-20 transition-all hover:scale-110
+            ${isDragging ? 'cursor-grabbing scale-105' : 'cursor-grab'}
+        `}
+        style={{ left: pos.x, top: pos.y, transform: 'translateX(-50%)' }}
+      >
+         <Sparkles size={20} />
+      </button>
+    );
+  }
 
   // Reset position when selection changes
   useEffect(() => {
@@ -106,8 +129,6 @@ const FloatingOperationsPanel: React.FC<FloatingOperationsPanelProps> = ({
           setIsRecording(false); 
       } 
   };
-
-  const isStack = layout === 'stack';
 
   if (selectedElements.length === 0 && !isStack) return null;
 
@@ -208,16 +229,26 @@ const FloatingOperationsPanel: React.FC<FloatingOperationsPanelProps> = ({
             transform: 'translateX(-50%)'
         }}
     >
-        {/* Drag Handle */}
+        {/* Drag Handle Area */}
         {!isStack && (
             <div 
                 onMouseDown={onMouseDown}
-                className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full cursor-grab hover:bg-slate-400 transition-colors mb-1"
-            />
+                className="w-16 h-4 flex items-center justify-center cursor-grab group"
+            >
+                <div className="w-8 h-1 bg-slate-200 dark:bg-slate-700 rounded-full group-hover:bg-slate-300 dark:group-hover:bg-slate-600 transition-colors" />
+            </div>
         )}
         
         {/* Main Toolbar */}
-        <div className={`flex items-center justify-center flex-wrap gap-1 ${isStack ? '' : 'p-1.5 bg-white dark:bg-slate-800 rounded-2xl md:rounded-full shadow-xl border border-slate-200 dark:border-slate-700 animate-in zoom-in duration-200 max-w-[calc(100vw-32px)]'}`}>
+        <div className={`relative flex items-center justify-center flex-wrap gap-1 ${isStack ? '' : 'p-1.5 bg-white dark:bg-slate-800 rounded-2xl md:rounded-full shadow-xl border border-slate-200 dark:border-slate-700 animate-in zoom-in duration-200 max-w-[calc(100vw-32px)]'}`}>
+            {!isStack && (
+                <button 
+                    onClick={() => setIsMinimized(true)}
+                    className="absolute -top-2 -right-2 p-1 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full border border-slate-200 dark:border-slate-600 shadow-sm transition-all"
+                >
+                    <Minimize2 size={10} />
+                </button>
+            )}
             
             {/* NLP Microphone Button */}
             <button

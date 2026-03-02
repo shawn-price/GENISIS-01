@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { 
   FilePlus, Download, Upload, Share2, Moon, Sun, Users, Grid,
-  Save, Menu, Settings, ChevronDown, FolderOpen
+  Save, Menu, Settings, ChevronDown, FolderOpen, Palette, MessageSquare
 } from 'lucide-react';
 import { Theme } from '../types';
 
@@ -16,6 +16,9 @@ interface HeaderMenuProps {
   onExport: () => void;
   onOpenGallery: () => void;
   onOpenSettings: () => void;
+  onOpenAssets: () => void;
+  onOpenMessenger: () => void;
+  onResetLayout?: () => void;
 }
 
 export const HeaderMenu: React.FC<HeaderMenuProps> = ({
@@ -28,7 +31,10 @@ export const HeaderMenu: React.FC<HeaderMenuProps> = ({
   onImport,
   onExport,
   onOpenGallery,
-  onOpenSettings
+  onOpenSettings,
+  onOpenAssets,
+  onOpenMessenger,
+  onResetLayout
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -38,12 +44,16 @@ export const HeaderMenu: React.FC<HeaderMenuProps> = ({
   };
 
   return (
-    <div className="h-14 bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 backdrop-blur-md flex items-center justify-between px-4 z-50 transition-colors duration-200 shrink-0 relative">
+    <div className="h-14 bg-white/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 backdrop-blur-md flex items-center justify-between px-4 z-10 transition-colors duration-200 shrink-0 relative">
       
       {/* Left: Branding & File Menu */}
       <div className="flex items-center gap-6">
         {/* Branding */}
-        <div className="flex items-center gap-2 select-none">
+        <div 
+          className="flex items-center gap-2 select-none cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={onResetLayout}
+          title="Reset Layout"
+        >
              <div className="bg-indigo-600 w-1.5 md:w-2 h-6 md:h-7 rounded-full"></div>
              <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
                 Genesis <span className="text-slate-500 font-normal">One</span>
@@ -63,10 +73,24 @@ export const HeaderMenu: React.FC<HeaderMenuProps> = ({
           </button>
           
           <button 
+            onClick={onOpenAssets}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          >
+            <Palette size={16} /> Assets
+          </button>
+
+          <button 
             onClick={onOpenGallery}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
           >
             <Grid size={16} /> Gallery
+          </button>
+
+          <button 
+            onClick={onOpenMessenger}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          >
+            <MessageSquare size={16} /> Messenger
           </button>
 
           <button 
@@ -111,8 +135,14 @@ export const HeaderMenu: React.FC<HeaderMenuProps> = ({
               <button onClick={() => { onNewSketch(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
                 <FilePlus size={16} /> New
               </button>
+              <button onClick={() => { onOpenAssets(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
+                <Palette size={16} /> Assets
+              </button>
               <button onClick={() => { onOpenGallery(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
                 <Grid size={16} /> Gallery
+              </button>
+              <button onClick={() => { onOpenAssets(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
+                <Palette size={16} /> Assets
               </button>
               <button onClick={() => { onSave(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
                 <Save size={16} /> Save

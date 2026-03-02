@@ -3,7 +3,7 @@ import {
   Layers, Trash2, MoveVertical, ChevronRight, Plus, RotateCcw, RotateCw, 
   Square, Circle, PaintBucket, PenTool, Type, Bold, Italic, 
   FolderOpen, Cpu, Settings2, X, Mic, Loader2, Eye, EyeOff, Lock, Unlock, 
-  Group, Ungroup, ChevronDown, Sparkles, Sliders, GripHorizontal
+  Group, Ungroup, ChevronDown, Sparkles, Sliders, GripHorizontal, Minus
 } from 'lucide-react';
 import { CanvasElement, ElementType, AVAILABLE_IMAGE_MODELS, AppSettings, BLEND_MODES } from '../types';
 import { transcribeAudio, enhancePrompt } from '../services/geminiService';
@@ -35,18 +35,20 @@ interface LayerPanelProps {
   onResizeCanvas: (ratio: string) => void;
   isMinimized?: boolean;
   onToggleMinimize?: (minimized: boolean) => void;
+  onClose?: () => void;
   layout?: 'floating' | 'stack';
+  resetTrigger?: number;
 }
 
 const LayerPanel: React.FC<LayerPanelProps> = ({ 
     elements, selectedIds, onSelect, onDelete, onReorder, onAddLayer, onUndo, onRedo,
     canUndo, canRedo, onUpdateElement, settings, onGroup, onUngroup, onToggleVisibility, onToggleLock,
     snapshots, onApplySnapshot, onDeleteSnapshot, canvasSize, aspectRatio, onResizeCanvas,
-    isMinimized: controlledMinimized, onToggleMinimize, layout = 'floating'
+    isMinimized: controlledMinimized, onToggleMinimize, onClose, layout = 'floating', resetTrigger
 }) => {
   const [activeTab, setActiveTab] = useState<'layers' | 'snapshots' | 'canvas'>('layers');
   const [internalMinimized, setInternalMinimized] = useState(true);
-  const { pos, onMouseDown, isDragging } = useDraggable({ x: Math.max(16, window.innerWidth - 340), y: 100 });
+  const { pos, onMouseDown, isDragging } = useDraggable({ x: Math.max(16, window.innerWidth - 340), y: 100 }, resetTrigger);
   
   const isMinimized = controlledMinimized !== undefined ? controlledMinimized : internalMinimized;
   const setIsMinimized = onToggleMinimize || setInternalMinimized;
@@ -140,10 +142,40 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
     }
   };
 
+  const isMobile = window.innerWidth < 768;
+
   const renderLayerItem = (el: CanvasElement, depth: number = 0) => {
       const children = getChildren(el.id);
       const isSelected = selectedIds.includes(el.id);
       const isGroup = el.type === ElementType.GROUP;
+
+      if (isMobile && !isStack) {
+        return (
+            <div
+                key={el.id}
+                onClick={(e) => onSelect(el.id, e.shiftKey)}
+                className={`
+                    flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded-xl border transition-all
+                    ${isSelected 
+                        ? 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-500/50 ring-2 ring-indigo-500/20' 
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                    }
+                `}
+                style={{ width: '70px' }}
+            >
+                <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center overflow-hidden">
+                    {el.type === ElementType.IMAGE && <img src={el.content} className="w-full h-full object-cover" />}
+                    {el.type === ElementType.TEXT && <span className="text-xs font-bold text-slate-500 dark:text-slate-300">T</span>}
+                    {el.type === ElementType.SHAPE && <div className={`w-4 h-4 bg-current ${el.shapeType === 'circle' ? 'rounded-full' : 'rounded-sm'}`} style={{ color: el.style?.backgroundColor }} />}
+                    {el.type === ElementType.ART_GEN && <Cpu size={14} className="text-indigo-400" />}
+                    {el.type === ElementType.GROUP && <FolderOpen size={14} className="text-indigo-400" />}
+                </div>
+                <span className="text-[9px] font-medium truncate w-full text-center text-slate-600 dark:text-slate-400">
+                    {el.type === ElementType.TEXT ? (el.content || 'Text') : el.type === ElementType.GROUP ? 'Group' : el.type}
+                </span>
+            </div>
+        );
+      }
 
       return (
           <React.Fragment key={el.id}>
@@ -225,31 +257,41 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
         className={`
             ${isStack 
               ? 'absolute right-0 top-12 bottom-0 w-80 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col z-20 transition-all duration-300' 
-              : `absolute w-80 max-w-[calc(100vw-32px)] bg-white/95 dark:bg-slate-800/90 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xl z-30 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 ${isDragging ? 'cursor-grabbing opacity-80 scale-105' : 'cursor-default'}`
+              : isMobile 
+                ? `fixed bottom-20 left-0 right-0 h-auto bg-white/95 dark:bg-slate-800/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 shadow-2xl z-30 flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300`
+                : `absolute w-80 max-w-[calc(100vw-32px)] bg-white/95 dark:bg-slate-800/90 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xl z-30 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 ${isDragging ? 'cursor-grabbing opacity-80 scale-105' : 'cursor-default'}`
             }
         `}
-        style={isStack ? {} : { left: pos.x, top: pos.y, height: window.innerWidth < 768 ? '60vh' : 'calc(100vh - 200px)' }}
+        style={isStack ? {} : isMobile ? { bottom: '72px' } : { left: pos.x, top: pos.y, height: 'calc(100vh - 200px)' }}
     >
       {/* Drag Handle */}
-      {!isStack && (
-        <div 
-          onMouseDown={onMouseDown}
-          className="h-6 flex items-center justify-center bg-slate-100/50 dark:bg-slate-900/50 cursor-grab hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors border-b border-slate-200 dark:border-slate-700"
-        >
-          <GripHorizontal size={16} className="text-slate-400" />
+      {!isStack && !isMobile && (
+        <div className="flex items-center justify-between px-2 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 h-7">
+            <div className="w-12"></div> {/* Spacer for balance */}
+            
+            <div 
+              onMouseDown={onMouseDown}
+              className="flex-1 h-full flex items-center justify-center cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            >
+                <GripHorizontal size={16} />
+            </div>
+
+            <div className="flex items-center gap-1 w-12 justify-end">
+                <button onClick={() => setIsMinimized(true)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" title="Minimize"><Minus size={14} /></button>
+                {onClose && (
+                    <button onClick={onClose} className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" title="Close"><X size={14} /></button>
+                )}
+            </div>
         </div>
       )}
 
-      <div className="p-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 mt-safe md:mt-0">
+      <div className="p-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
         <div className="flex items-center justify-between mb-3">
             <div className="flex gap-2">
                 <button onClick={() => setActiveTab('layers')} className={`text-xs font-semibold px-2 py-1 rounded transition-colors ${activeTab === 'layers' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>Layers</button>
                 <button onClick={() => setActiveTab('snapshots')} className={`text-xs font-semibold px-2 py-1 rounded transition-colors ${activeTab === 'snapshots' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>Snapshots</button>
                 <button onClick={() => setActiveTab('canvas')} className={`text-xs font-semibold px-2 py-1 rounded transition-colors ${activeTab === 'canvas' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>Canvas</button>
             </div>
-            {!isStack && (
-                <button onClick={() => setIsMinimized(true)} className="text-slate-500 hover:text-slate-900 dark:hover:text-white p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"><ChevronRight size={16} /></button>
-            )}
         </div>
         <div className="flex items-center justify-between gap-1">
              <div className="flex gap-1">
@@ -266,10 +308,10 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+      <div className={`flex-1 ${isMobile && !isStack ? 'flex flex-row overflow-x-auto p-3 gap-3' : 'overflow-y-auto p-2 space-y-1'} custom-scrollbar`}>
         {activeTab === 'layers' && (
             elements.length === 0 ? (
-                <div className="text-center text-slate-500 py-8 text-xs italic">No layers.<br/>Speak, draw, or click '+'</div>
+                <div className="text-center text-slate-500 py-4 text-[10px] italic w-full">No layers.</div>
             ) : (
                 rootElements.map(el => renderLayerItem(el))
             )

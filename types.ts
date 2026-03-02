@@ -108,7 +108,12 @@ export enum ToolType {
 
 // AI Action Types returned by Gemini
 export interface AIAction {
-  action: 'ADD_ELEMENT' | 'UPDATE_ELEMENT' | 'DELETE_ELEMENT' | 'GENERATE_IMAGE' | 'UNKNOWN';
+  action: 
+    | 'ADD_ELEMENT' | 'UPDATE_ELEMENT' | 'DELETE_ELEMENT' | 'GENERATE_IMAGE' | 'UNKNOWN'
+    | 'GENERATE_FULL_CANVAS' | 'GENERATE_ELEMENT' | 'GENERATE_TEXTURE' | 'INITIALIZE_CANVAS'
+    | 'SMART_ERASE' | 'IN_PAINT_REPLACE' | 'OUT_PAINT_EXPAND' | 'SUBJECT_EXTRACTION'
+    | 'NEURAL_UPSCALE' | 'ADJUST_LIGHTING' | 'STANDARD_TRANSFORM' | 'COLOR_GRADE'
+    | 'MERGE_VISIBLE' | 'SET_BLEND_MODE' | 'AUTO_STACK' | 'MASK_LAYER';
   reasoning: string;
   parameters: any;
 }
@@ -201,7 +206,7 @@ export const AVAILABLE_IMAGE_MODELS = [
 ];
 
 export const AVAILABLE_LLM_MODELS = [
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Default)' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Default)' },
   { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro' },
   { id: 'llama-3.1-8b', name: 'Llama 3.1 8B (via API)' },
   { id: 'pipecat', name: 'Pipecat Agent' },
